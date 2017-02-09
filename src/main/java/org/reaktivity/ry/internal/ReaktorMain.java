@@ -20,6 +20,7 @@ import static java.util.Arrays.sort;
 import static org.agrona.IoUtil.tmpDirName;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.InputStreamReader;
 import java.util.Comparator;
 import java.util.Properties;
@@ -28,6 +29,7 @@ import javax.script.Bindings;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 
+import org.agrona.concurrent.SigIntBarrier;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -36,6 +38,7 @@ import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.reaktivity.nukleus.Configuration;
 import org.reaktivity.reaktor.Reaktor;
+import org.reaktivity.reaktor.matchers.ControllerMatcher;
 import org.reaktivity.reaktor.matchers.NukleusMatcher;
 
 public final class ReaktorMain
@@ -48,6 +51,8 @@ public final class ReaktorMain
         options.addOption(Option.builder("d").longOpt("directory").hasArg().desc("configuration directory").build());
         options.addOption(Option.builder("h").longOpt("help").desc("print this message").build());
         options.addOption(Option.builder("n").longOpt("nukleus").hasArgs().desc("nukleus name").build());
+        options.addOption(Option.builder("c").longOpt("controller").hasArgs().desc("controller name").build());
+        options.addOption(Option.builder("s").longOpt("script").hasArgs().desc("execution script").build());
 
         CommandLine cmdline = parser.parse(options, args);
 
@@ -61,23 +66,31 @@ public final class ReaktorMain
             String directory = cmdline.getOptionValue("directory",
                     format("%sorg.reaktivity.reaktor%s", tmpDirName(), File.separator));
             String[] nuklei = cmdline.getOptionValues("nukleus");
+            String[] controllers = cmdline.getOptionValues("controller");
 
             Properties properties = new Properties();
             properties.setProperty(Configuration.DIRECTORY_PROPERTY_NAME, directory);
 
             Configuration config = new Configuration(properties);
 
-            NukleusMatcher includes = name -> true;
+            NukleusMatcher includeNuklei = name -> true;
             if (nuklei != null)
             {
                 Comparator<String> comparator = (o1, o2) -> o1.compareTo(o2);
                 sort(nuklei, comparator);
-                includes = name -> binarySearch(nuklei, name, comparator) >= 0;
+                includeNuklei = name -> binarySearch(nuklei, name, comparator) >= 0;
+            }
+
+            ControllerMatcher includeControllers = c -> true;
+            if (controllers != null)
+            {
+                includeControllers = c -> binarySearch(controllers, c.getName()) >= 0;
             }
 
             try (Reaktor reaktor = Reaktor.builder()
                     .config(config)
-                    .discover(includes)
+                    .discover(includeNuklei)
+                    .discover(includeControllers)
                     .errorHandler(ex -> ex.printStackTrace(System.err))
                     .build()
                     .start())
@@ -88,13 +101,24 @@ public final class ReaktorMain
                 final ScriptEngine engine = manager.getEngineByName("nashorn");
 
                 Bindings bindings = engine.createBindings();
+                reaktor.visit(c -> bindings.put(c.name() + "Controller", c));
                 bindings.put("reaktor", reaktor);
 
-                engine.eval(new InputStreamReader(System.in), bindings);
+                String script = cmdline.getOptionValue("script");
+                if (script == null)
+                {
+                    new SigIntBarrier().await();
+                }
+                else
+                {
+                    engine.eval(new InputStreamReader(new FileInputStream(script)), bindings);
+                    new SigIntBarrier().await();
 
-                // TODO: avoid closing eagerly?
-                // System.out.println("Shutting down");
-                // CloseHelper.close(reaktor);
+                    // TODO: avoid closing eagerly?
+                    // System.out.println("Shutting down");
+                    // CloseHelper.close(reaktor);
+                }
+
             }
         }
     }

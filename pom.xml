@@ -7,7 +7,7 @@
   <groupId>org.reaktivity</groupId>
   <artifactId>ry</artifactId>
   <version>develop-SNAPSHOT</version>
-  <packaging>pom</packaging>
+  <packaging>jar</packaging>
   <name>RY</name>
   <description>RY</description>
   <url>https://github.com/reaktivity/ry</url>
@@ -50,22 +50,22 @@
       <dependency>
         <groupId>org.reaktivity</groupId>
         <artifactId>reaktor</artifactId>
-        <version>0.2</version>
+        <version>develop-SNAPSHOT</version>
       </dependency>
       <dependency>
         <groupId>org.reaktivity</groupId>
         <artifactId>nukleus-tcp</artifactId>
-        <version>0.2</version>
+        <version>develop-SNAPSHOT</version>
       </dependency>
       <dependency>
         <groupId>org.reaktivity</groupId>
         <artifactId>nukleus-http</artifactId>
-        <version>0.3</version>
+        <version>develop-SNAPSHOT</version>
       </dependency>
       <dependency>
         <groupId>org.reaktivity</groupId>
         <artifactId>nukleus-ws</artifactId>
-        <version>0.1</version>
+        <version>develop-SNAPSHOT</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -146,8 +146,9 @@
               <transformers>
                 <transformer
                   implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                  <mainClass>org.reaktivity.ry.ReactivityMain</mainClass>
+                  <mainClass>org.reaktivity.ry.internal.ReaktorMain</mainClass>
                 </transformer>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
               </transformers>
             </configuration>
           </execution>
